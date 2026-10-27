@@ -3,12 +3,9 @@ package com.dev.qrcodescanner
 import android.graphics.Bitmap
 import android.util.Log
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
@@ -16,11 +13,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +29,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,7 +40,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
@@ -55,16 +55,16 @@ import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.ViewWeek
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -74,7 +74,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -83,15 +85,20 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Stable
@@ -176,6 +183,10 @@ fun QrGeneratorScreen(
         label = "accentEnd"
     )
 
+    val detailsReady = state.type.buildPayload(state.values) != null
+    val hasResult = state.result != null
+    val readyCount = listOf(detailsReady, hasResult).count { it }
+
     fun generate() {
         focusManager.clearFocus()
 
@@ -195,7 +206,6 @@ fun QrGeneratorScreen(
                     QrEngine.renderQr(context, payload, state.style)
                 }
                 onMessage("Code generated successfully.")
-                scrollState.animateScrollTo(scrollState.maxValue)
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
@@ -207,32 +217,49 @@ fun QrGeneratorScreen(
         }
     }
 
-    Column(
+    LaunchedEffect(state.result) {
+        if (state.result != null) {
+            delay(180)
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .verticalScroll(scrollState)
-            .padding(vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(28.dp)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        accentStart.copy(alpha = 0.13f),
+                        MaterialTheme.colorScheme.background,
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
     ) {
-        Reveal(delayMillis = 0) {
-            Hero(
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 200.dp),
+            verticalArrangement = Arrangement.spacedBy(28.dp)
+        ) {
+            CreateHero(
                 type = state.type,
                 start = accentStart,
                 end = accentEnd,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                readyCount = readyCount,
+                total = 2
             )
-        }
 
-        Reveal(delayMillis = 80) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                SectionHeader(
-                    index = "01",
-                    title = "Choose a type",
-                    subtitle = "Pick what your code should do",
-                    accent = accentStart,
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                )
-                TypeCarousel(
+            CreateStepSection(
+                number = 1,
+                title = "Choose a type",
+                subtitle = "Pick what your code should do.",
+                done = true,
+                accent = accentStart
+            ) {
+                CreateTypeCarousel(
                     selected = state.type,
                     onSelect = {
                         state.type = it
@@ -240,258 +267,398 @@ fun QrGeneratorScreen(
                     }
                 )
             }
-        }
 
-        Reveal(delayMillis = 160) {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                SectionHeader(
-                    index = "02",
-                    title = "Add details",
-                    subtitle = "Fields marked * are required",
-                    accent = accentStart,
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                )
-                DetailsCard(
+            CreateStepSection(
+                number = 2,
+                title = "Add details",
+                subtitle = "Fields marked * are required.",
+                done = detailsReady,
+                accent = accentStart
+            ) {
+                CreateDetailsCard(
                     state = state,
                     start = accentStart,
-                    end = accentEnd,
-                    modifier = Modifier.padding(horizontal = 20.dp)
+                    end = accentEnd
                 )
             }
-        }
 
-        if (!isBarcode) {
-            Reveal(delayMillis = 240) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    SectionHeader(
-                        index = "03",
-                        title = "Customize",
-                        subtitle = "Shape, colors and extras",
-                        accent = accentStart,
-                        modifier = Modifier.padding(horizontal = 20.dp)
-                    )
+            if (!isBarcode) {
+                CreateStepSection(
+                    number = 3,
+                    title = "Customize",
+                    subtitle = "Shape, colors and extras.",
+                    done = false,
+                    accent = accentStart
+                ) {
                     StyleOptionsCard(
                         style = state.style,
                         onStyleChange = {
                             state.style = it
                             state.result = null
                         },
-                        showAppLogo = true,
-                        modifier = Modifier.padding(horizontal = 20.dp)
+                        showAppLogo = true
+                    )
+                }
+            }
+
+            CreateStepSection(
+                number = if (isBarcode) 3 else 4,
+                title = "Preview and share",
+                subtitle = when {
+                    state.generating -> "Building your code."
+                    hasResult -> "Ready to save or share."
+                    else -> "Your finished code appears here."
+                },
+                done = hasResult,
+                accent = accentStart,
+                isLast = true
+            ) {
+                CreatePreviewCard(
+                    bitmap = state.result,
+                    generating = state.generating,
+                    isBarcode = isBarcode,
+                    formatLabel = if (isBarcode) "Code 128" else "QR Code",
+                    start = accentStart,
+                    end = accentEnd,
+                    onSave = { state.result?.let(actions::save) },
+                    onShare = { state.result?.let(actions::share) }
+                )
+            }
+        }
+
+        CreateGenerateBar(
+            modifier = Modifier.align(Alignment.BottomCenter),
+            detailsReady = detailsReady,
+            hasResult = hasResult,
+            generating = state.generating,
+            start = accentStart,
+            end = accentEnd,
+            onGenerate = ::generate
+        )
+    }
+}
+
+@Composable
+private fun CreateHero(
+    type: ContentType,
+    start: Color,
+    end: Color,
+    readyCount: Int,
+    total: Int
+) {
+    val fraction by animateFloatAsState(
+        targetValue = readyCount / total.toFloat(),
+        label = "heroProgress"
+    )
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(32.dp),
+        color = start,
+        shadowElevation = 12.dp
+    ) {
+        Box(modifier = Modifier.background(Brush.linearGradient(listOf(start, end)))) {
+            Box(
+                modifier = Modifier
+                    .size(220.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 80.dp, y = (-90).dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.09f))
+            )
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .align(Alignment.BottomStart)
+                    .offset(x = (-40).dp, y = 50.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.06f))
+            )
+
+            Column(
+                modifier = Modifier.padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.White.copy(alpha = 0.2f))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = type.icon,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color.White
+                            )
+                            Text(
+                                text = "${type.label} code",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
+                            )
+                        }
+                        Text(
+                            text = "Create something scannable",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                            lineHeight = 30.sp
+                        )
+                        Text(
+                            text = "Turn text, links and other information into a code people can scan.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.88f)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(92.dp)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .padding(13.dp)
+                    ) {
+                        CreateMotif(
+                            modifier = Modifier.fillMaxSize(),
+                            color = Color.White,
+                            center = start
+                        )
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "Your progress",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                        Text(
+                            text = "$readyCount of $total done",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    CreateProgressTrack(
+                        fraction = fraction,
+                        color = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.22f),
+                        height = 7.dp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreateProgressTrack(
+    fraction: Float,
+    color: Color,
+    trackColor: Color,
+    height: Dp
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .clip(RoundedCornerShape(50))
+            .background(trackColor)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(fraction.coerceIn(0f, 1f))
+                .height(height)
+                .clip(RoundedCornerShape(50))
+                .background(color)
+        )
+    }
+}
+
+@Composable
+private fun CreateMotif(
+    modifier: Modifier,
+    color: Color,
+    center: Color
+) {
+    Canvas(modifier = modifier) {
+        val n = 11
+        val cell = size.width / n
+
+        fun inFinder(x: Int, y: Int) =
+            (x < 4 && y < 4) || (x >= n - 4 && y < 4) || (x < 4 && y >= n - 4)
+
+        fun inCenter(x: Int, y: Int) = x in 4..6 && y in 4..6
+
+        for (y in 0 until n) {
+            for (x in 0 until n) {
+                if (inFinder(x, y) || inCenter(x, y)) continue
+                if ((x * 7 + y * 13 + x * y) % 3 == 0) {
+                    drawRoundRect(
+                        color = color.copy(alpha = 0.9f),
+                        topLeft = Offset(x * cell + cell * 0.12f, y * cell + cell * 0.12f),
+                        size = Size(cell * 0.76f, cell * 0.76f),
+                        cornerRadius = CornerRadius(cell * 0.24f)
                     )
                 }
             }
         }
 
-        Reveal(delayMillis = 320) {
-            GenerateButton(
-                generating = state.generating,
-                start = accentStart,
-                end = accentEnd,
-                onClick = { generate() },
-                modifier = Modifier.padding(horizontal = 20.dp)
+        fun eye(ox: Int, oy: Int) {
+            val stroke = cell * 0.5f
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(ox * cell + stroke / 2f, oy * cell + stroke / 2f),
+                size = Size(cell * 3 - stroke, cell * 3 - stroke),
+                cornerRadius = CornerRadius(cell * 0.8f),
+                style = Stroke(width = stroke)
+            )
+            drawRoundRect(
+                color = color,
+                topLeft = Offset((ox + 1) * cell + cell * 0.08f, (oy + 1) * cell + cell * 0.08f),
+                size = Size(cell * 0.84f, cell * 0.84f),
+                cornerRadius = CornerRadius(cell * 0.3f)
             )
         }
+        eye(0, 0)
+        eye(n - 3, 0)
+        eye(0, n - 3)
 
-        Reveal(delayMillis = 400) {
-            ScannerPreview(
-                bitmap = state.result,
-                generating = state.generating,
-                isBarcode = isBarcode,
-                formatLabel = if (isBarcode) "Code 128" else "QR Code",
-                start = accentStart,
-                end = accentEnd,
-                onSave = { state.result?.let(actions::save) },
-                onShare = { state.result?.let(actions::share) },
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(4 * cell, 4 * cell),
+            size = Size(cell * 3, cell * 3),
+            cornerRadius = CornerRadius(cell * 0.9f)
+        )
+        drawCircle(
+            color = center,
+            radius = cell * 0.7f,
+            center = Offset(5.5f * cell, 5.5f * cell)
+        )
     }
 }
 
-@Composable
-private fun Reveal(
-    delayMillis: Int,
-    content: @Composable () -> Unit
-) {
-    val visibleState = remember {
-        MutableTransitionState(false).apply { targetState = true }
-    }
-
-    AnimatedVisibility(
-        visibleState = visibleState,
-        enter = fadeIn(tween(450, delayMillis)) +
-                slideInVertically(tween(450, delayMillis)) { it / 6 }
-    ) {
-        content()
-    }
-}
 
 @Composable
-private fun Hero(
-    type: ContentType,
-    start: Color,
-    end: Color,
-    modifier: Modifier = Modifier
+private fun CreateStepSection(
+    number: Int,
+    title: String,
+    subtitle: String,
+    done: Boolean,
+    accent: Color,
+    isLast: Boolean = false,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
-    val transition = rememberInfiniteTransition(label = "hero")
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(7000, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "drift"
+    val railColor = MaterialTheme.colorScheme.outlineVariant
+    val nodeColor by animateColorAsState(
+        targetValue = if (done) accent else MaterialTheme.colorScheme.surfaceVariant,
+        label = "stepNode"
+    )
+    val nodeContent by animateColorAsState(
+        targetValue = if (done) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+        label = "stepNodeContent"
     )
 
-    Box(
-        modifier = modifier
+    Row(
+        modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(32.dp))
-            .background(Brush.linearGradient(listOf(start, end)))
-    ) {
-        Canvas(modifier = Modifier.matchParentSize()) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.10f),
-                radius = size.minDimension * 0.75f,
-                center = Offset(
-                    size.width * (0.92f - 0.06f * drift),
-                    size.height * (0.05f + 0.12f * drift)
-                )
-            )
-            drawCircle(
-                color = Color.White.copy(alpha = 0.08f),
-                radius = size.minDimension * 0.5f,
-                center = Offset(
-                    size.width * (0.08f + 0.06f * drift),
-                    size.height * (1.0f - 0.1f * drift)
-                )
-            )
-
-            val cell = 6.dp.toPx()
-            val gap = 3.dp.toPx()
-            val cols = 7
-            val originX = size.width - cols * (cell + gap) - 18.dp.toPx()
-            val originY = 20.dp.toPx()
-
-            for (x in 0 until cols) {
-                for (y in 0 until cols) {
-                    val finder = (x < 3 && y < 3) ||
-                            (x >= cols - 3 && y < 3) ||
-                            (x < 3 && y >= cols - 3)
-                    val filled = finder || ((x * 5 + y * 3 + x * y) % 3 == 0)
-                    if (filled) {
-                        drawRoundRect(
-                            color = Color.White.copy(alpha = if (finder) 0.32f else 0.16f),
-                            topLeft = Offset(
-                                originX + x * (cell + gap),
-                                originY + y * (cell + gap)
-                            ),
-                            size = Size(cell, cell),
-                            cornerRadius = CornerRadius(cell * 0.3f)
+            .then(
+                if (isLast) {
+                    Modifier
+                } else {
+                    Modifier.drawBehind {
+                        val x = 19.dp.toPx()
+                        drawLine(
+                            color = railColor,
+                            start = Offset(x, 46.dp.toPx()),
+                            end = Offset(x, size.height - 6.dp.toPx()),
+                            strokeWidth = 2.dp.toPx()
                         )
                     }
                 }
+            ),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(nodeColor),
+            contentAlignment = Alignment.Center
+        ) {
+            if (done) {
+                Icon(
+                    imageVector = Icons.Rounded.Check,
+                    contentDescription = "Completed",
+                    tint = nodeContent,
+                    modifier = Modifier.size(20.dp)
+                )
+            } else {
+                Text(
+                    text = number.toString(),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = nodeContent,
+                    fontWeight = FontWeight.ExtraBold
+                )
             }
         }
 
         Column(
-            modifier = Modifier.padding(
-                start = 24.dp,
-                top = 26.dp,
-                end = 92.dp,
-                bottom = 26.dp
-            ),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier
+                .weight(1f)
+                .padding(bottom = if (isLast) 0.dp else 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            Column(
+                modifier = Modifier.padding(top = 1.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Icon(
-                    imageVector = type.icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = Color.White
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = "${type.label} code",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-
-            Text(
-                text = "Create something scannable",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.ExtraBold,
-                color = Color.White
-            )
-
-            Text(
-                text = "Turn text, links, and other information into a beautiful code.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.88f)
-            )
+            content()
         }
     }
 }
 
-@Composable
-private fun SectionHeader(
-    index: String,
-    title: String,
-    subtitle: String,
-    accent: Color,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Text(
-            text = index,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.ExtraBold,
-            color = accent.copy(alpha = 0.9f)
-        )
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
 
 @Composable
-private fun TypeCarousel(
+private fun CreateTypeCarousel(
     selected: ContentType,
     onSelect: (ContentType) -> Unit
 ) {
     Row(
         modifier = Modifier
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         ContentType.entries.forEach { type ->
-            TypeCard(
+            CreateTypeCard(
                 type = type,
                 selected = selected == type,
                 onClick = { onSelect(type) }
@@ -501,7 +668,7 @@ private fun TypeCarousel(
 }
 
 @Composable
-private fun TypeCard(
+private fun CreateTypeCard(
     type: ContentType,
     selected: Boolean,
     onClick: () -> Unit
@@ -522,7 +689,8 @@ private fun TypeCard(
     } else {
         MaterialTheme.colorScheme.onSurfaceVariant
     }
-    val surface = MaterialTheme.colorScheme.surfaceContainerLow
+    val surface = MaterialTheme.colorScheme.surface
+    val outline = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
 
     Column(
         modifier = Modifier
@@ -542,10 +710,12 @@ private fun TypeCard(
                 if (selected) {
                     Modifier.background(Brush.linearGradient(listOf(start, end)))
                 } else {
-                    Modifier.background(surface)
+                    Modifier
+                        .background(surface)
+                        .border(1.dp, outline, shape)
                 }
             )
-            .clickable(onClick = onClick)
+            .clickable(role = Role.Button, onClick = onClick)
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
@@ -586,22 +756,25 @@ private fun TypeCard(
     }
 }
 
+
 @Composable
-private fun DetailsCard(
+private fun CreateDetailsCard(
     state: CreateState,
     start: Color,
-    end: Color,
-    modifier: Modifier = Modifier
+    end: Color
 ) {
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(26.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        ),
+        shadowElevation = 3.dp
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Row(
@@ -669,7 +842,7 @@ private fun DetailsCard(
 
                     if (type == ContentType.WiFi) {
                         SectionLabel("Security")
-                        PillSelector(
+                        CreatePillSelector(
                             options = WifiSecurityOptions,
                             selected = state.values[WifiSecurityKey] ?: "WPA",
                             start = start,
@@ -687,7 +860,7 @@ private fun DetailsCard(
 }
 
 @Composable
-private fun PillSelector(
+private fun CreatePillSelector(
     options: List<String>,
     selected: String,
     start: Color,
@@ -697,7 +870,7 @@ private fun PillSelector(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -709,7 +882,7 @@ private fun PillSelector(
                 modifier = Modifier
                     .weight(1f)
                     .height(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(14.dp))
                     .then(
                         if (isSelected) {
                             Modifier.background(Brush.horizontalGradient(listOf(start, end)))
@@ -717,7 +890,7 @@ private fun PillSelector(
                             Modifier
                         }
                     )
-                    .clickable { onSelect(option) },
+                    .clickable(role = Role.Tab) { onSelect(option) },
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -735,67 +908,10 @@ private fun PillSelector(
     }
 }
 
-@Composable
-private fun GenerateButton(
-    generating: Boolean,
-    start: Color,
-    end: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val shape = RoundedCornerShape(22.dp)
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(60.dp)
-            .shadow(
-                elevation = if (generating) 0.dp else 12.dp,
-                shape = shape,
-                ambientColor = start,
-                spotColor = start
-            )
-            .clip(shape)
-            .background(Brush.horizontalGradient(listOf(start, end)))
-            .clickable(enabled = !generating, onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            if (generating) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    color = Color.White,
-                    strokeWidth = 2.5.dp
-                )
-                Text(
-                    text = "Generating...",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Rounded.AutoAwesome,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = Color.White
-                )
-                Text(
-                    text = "Generate Code",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-        }
-    }
-}
 
 @Composable
-private fun ScannerPreview(
+private fun CreatePreviewCard(
     bitmap: Bitmap?,
     generating: Boolean,
     isBarcode: Boolean,
@@ -803,29 +919,20 @@ private fun ScannerPreview(
     start: Color,
     end: Color,
     onSave: () -> Unit,
-    onShare: () -> Unit,
-    modifier: Modifier = Modifier
+    onShare: () -> Unit
 ) {
-    val transition = rememberInfiniteTransition(label = "scan")
-    val scan by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1300, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
         ),
-        label = "scanLine"
-    )
-
-    Card(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(32.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        )
+        shadowElevation = 3.dp
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -834,23 +941,11 @@ private fun ScannerPreview(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "Your code",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = when {
-                            generating -> "Building your code..."
-                            bitmap != null -> "Ready to save or share"
-                            else -> "Fill in the details and generate"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
+                Text(
+                    text = "Your code",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
@@ -877,8 +972,9 @@ private fun ScannerPreview(
                             Modifier.aspectRatio(1f)
                         }
                     )
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(Color.White),
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color.White)
+                    .border(1.dp, Color.Black.copy(alpha = 0.06f), RoundedCornerShape(26.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Crossfade(
@@ -892,7 +988,7 @@ private fun ScannerPreview(
                             contentDescription = "$formatLabel preview",
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(28.dp)
+                                .padding(26.dp)
                         )
                     } else {
                         Column(
@@ -919,53 +1015,21 @@ private fun ScannerPreview(
                     }
                 }
 
-                Canvas(
+                ScannerCorners(
                     modifier = Modifier
                         .matchParentSize()
-                        .padding(14.dp)
-                ) {
-                    val length = 30.dp.toPx()
-                    val strokeWidth = 4.dp.toPx()
-                    val width = size.width
-                    val height = size.height
+                        .padding(14.dp),
+                    color = start
+                )
 
-                    fun corner(x: Float, y: Float, dx: Float, dy: Float) {
-                        drawLine(
-                            color = start,
-                            start = Offset(x, y),
-                            end = Offset(x + dx * length, y),
-                            strokeWidth = strokeWidth,
-                            cap = StrokeCap.Round
-                        )
-                        drawLine(
-                            color = start,
-                            start = Offset(x, y),
-                            end = Offset(x, y + dy * length),
-                            strokeWidth = strokeWidth,
-                            cap = StrokeCap.Round
-                        )
-                    }
-
-                    corner(0f, 0f, 1f, 1f)
-                    corner(width, 0f, -1f, 1f)
-                    corner(0f, height, 1f, -1f)
-                    corner(width, height, -1f, -1f)
-
-                    if (generating) {
-                        val y = height * scan
-                        drawRect(
-                            color = start.copy(alpha = 0.12f),
-                            topLeft = Offset(0f, y - 40.dp.toPx()),
-                            size = Size(width, 40.dp.toPx())
-                        )
-                        drawRect(
-                            brush = Brush.horizontalGradient(
-                                listOf(Color.Transparent, start, end, Color.Transparent)
-                            ),
-                            topLeft = Offset(0f, y - 2.dp.toPx()),
-                            size = Size(width, 4.dp.toPx())
-                        )
-                    }
+                if (generating) {
+                    ScanSweep(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(14.dp),
+                        start = start,
+                        end = end
+                    )
                 }
             }
 
@@ -1011,6 +1075,207 @@ private fun ScannerPreview(
                     Text(text = "Share", fontWeight = FontWeight.SemiBold)
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ScannerCorners(
+    modifier: Modifier,
+    color: Color
+) {
+    Canvas(modifier = modifier) {
+        val length = 30.dp.toPx()
+        val strokeWidth = 4.dp.toPx()
+        val width = size.width
+        val height = size.height
+
+        fun corner(x: Float, y: Float, dx: Float, dy: Float) {
+            drawLine(
+                color = color,
+                start = Offset(x, y),
+                end = Offset(x + dx * length, y),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+            drawLine(
+                color = color,
+                start = Offset(x, y),
+                end = Offset(x, y + dy * length),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round
+            )
+        }
+
+        corner(0f, 0f, 1f, 1f)
+        corner(width, 0f, -1f, 1f)
+        corner(0f, height, 1f, -1f)
+        corner(width, height, -1f, -1f)
+    }
+}
+
+@Composable
+private fun ScanSweep(
+    modifier: Modifier,
+    start: Color,
+    end: Color
+) {
+    val transition = rememberInfiniteTransition(label = "scan")
+    val scan by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1300, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "scanLine"
+    )
+
+    Canvas(modifier = modifier) {
+        val y = size.height * scan
+        drawRect(
+            color = start.copy(alpha = 0.12f),
+            topLeft = Offset(0f, y - 40.dp.toPx()),
+            size = Size(size.width, 40.dp.toPx())
+        )
+        drawRect(
+            brush = Brush.horizontalGradient(
+                listOf(Color.Transparent, start, end, Color.Transparent)
+            ),
+            topLeft = Offset(0f, y - 2.dp.toPx()),
+            size = Size(size.width, 4.dp.toPx())
+        )
+    }
+}
+
+
+@Composable
+private fun CreateGenerateBar(
+    modifier: Modifier,
+    detailsReady: Boolean,
+    hasResult: Boolean,
+    generating: Boolean,
+    start: Color,
+    end: Color,
+    onGenerate: () -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.98f),
+        shadowElevation = 18.dp
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CreateStatusPill(
+                    ok = detailsReady,
+                    okText = "Details ready",
+                    todoText = "Fill required fields",
+                    accent = start
+                )
+                CreateStatusPill(
+                    ok = hasResult,
+                    okText = "Code ready",
+                    todoText = "Not generated yet",
+                    accent = start
+                )
+            }
+
+            val shape = RoundedCornerShape(20.dp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp)
+                    .alpha(if (detailsReady || generating) 1f else 0.75f)
+                    .shadow(
+                        elevation = if (generating) 0.dp else 10.dp,
+                        shape = shape,
+                        ambientColor = start,
+                        spotColor = start
+                    )
+                    .clip(shape)
+                    .background(Brush.horizontalGradient(listOf(start, end)))
+                    .clickable(
+                        enabled = !generating,
+                        role = Role.Button,
+                        onClick = onGenerate
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (generating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = Color.White,
+                            strokeWidth = 2.5.dp
+                        )
+                        Text(
+                            text = "Generating",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = Color.White
+                        )
+                        Text(
+                            text = if (hasResult) "Generate again" else "Generate code",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CreateStatusPill(
+    ok: Boolean,
+    okText: String,
+    todoText: String,
+    accent: Color
+) {
+    val container by animateColorAsState(
+        targetValue = if (ok) {
+            accent.copy(alpha = 0.14f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+        },
+        label = "pillContainer"
+    )
+    val tint = if (ok) accent else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Surface(shape = RoundedCornerShape(50.dp), color = container) {
+        Row(
+            modifier = Modifier.padding(horizontal = 11.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (ok) Icons.Rounded.Check else Icons.Rounded.Info,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(15.dp)
+            )
+            Text(
+                text = if (ok) okText else todoText,
+                style = MaterialTheme.typography.labelMedium,
+                color = tint,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
